@@ -3,13 +3,15 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Dict, Any
 import uuid
 import json
 import asyncio
 
 from . import storage
+from .config import OPENROUTER_API_KEY
+from .model_catalog import list_model_options
 from .council import run_full_council, generate_conversation_title, stage1_collect_responses, stage2_collect_rankings, stage3_synthesize_final, calculate_aggregate_rankings
 
 app = FastAPI(title="LLM Council API")
@@ -32,6 +34,30 @@ class CreateConversationRequest(BaseModel):
 class SendMessageRequest(BaseModel):
     """Request to send a message in a conversation."""
     content: str
+    council_models: List[str] | None = Field(default=None, min_length=1, max_length=26)
+    chairman_model: str | None = None
+
+    @field_validator("council_models")
+    @classmethod
+    def validate_council_models(cls, value):
+        if value is None:
+            return value
+        models = [cls.validate_model_id(model) for model in value]
+        if len(models) != len(set(models)):
+            raise ValueError("Council models must be unique.")
+        return models
+
+    @field_validator("chairman_model")
+    @classmethod
+    def validate_chairman_model(cls, value):
+        return None if value is None else cls.validate_model_id(value)
+
+    @staticmethod
+    def validate_model_id(value):
+        model = value.strip()
+        if not model or len(model) > 200 or "/" not in model or any(char.isspace() for char in model):
+            raise ValueError("Use a nonempty OpenRouter model ID such as provider/model.")
+        return model
 
 
 class ConversationMetadata(BaseModel):
@@ -54,6 +80,12 @@ class Conversation(BaseModel):
 async def root():
     """Health check endpoint."""
     return {"status": "ok", "service": "LLM Council API"}
+
+
+@app.get("/api/models")
+async def get_models():
+    """Public text-model choices and defaults; never return or send API keys."""
+    return await list_model_options()
 
 
 @app.get("/api/conversations", response_model=List[ConversationMetadata])
@@ -90,6 +122,12 @@ async def send_message(conversation_id: str, request: SendMessageRequest):
     if conversation is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
+    if not OPENROUTER_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Set OPENROUTER_API_KEY in the project .env file and restart the backend.",
+        )
+
     # Check if this is the first message
     is_first_message = len(conversation["messages"]) == 0
 
@@ -103,7 +141,7 @@ async def send_message(conversation_id: str, request: SendMessageRequest):
 
     # Run the 3-stage council process
     stage1_results, stage2_results, stage3_result, metadata = await run_full_council(
-        request.content
+        request.content, request.council_models, request.chairman_model
     )
 
     # Add assistant message with all stages
@@ -134,33 +172,43 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
     if conversation is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
+    if not OPENROUTER_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Set OPENROUTER_API_KEY in the project .env file and restart the backend.",
+        )
+
     # Check if this is the first message
     is_first_message = len(conversation["messages"]) == 0
 
     async def event_generator():
+        title_task = None
         try:
             # Add user message
             storage.add_user_message(conversation_id, request.content)
 
             # Start title generation in parallel (don't await yet)
-            title_task = None
             if is_first_message:
                 title_task = asyncio.create_task(generate_conversation_title(request.content))
 
             # Stage 1: Collect responses
             yield f"data: {json.dumps({'type': 'stage1_start'})}\n\n"
-            stage1_results = await stage1_collect_responses(request.content)
+            stage1_results = await stage1_collect_responses(request.content, request.council_models)
             yield f"data: {json.dumps({'type': 'stage1_complete', 'data': stage1_results})}\n\n"
+
+            if not stage1_results:
+                yield f"data: {json.dumps({'type': 'error', 'message': 'No council models responded. Check your OpenRouter key, credits, model IDs, and backend logs.'})}\n\n"
+                return
 
             # Stage 2: Collect rankings
             yield f"data: {json.dumps({'type': 'stage2_start'})}\n\n"
-            stage2_results, label_to_model = await stage2_collect_rankings(request.content, stage1_results)
+            stage2_results, label_to_model = await stage2_collect_rankings(request.content, stage1_results, request.council_models)
             aggregate_rankings = calculate_aggregate_rankings(stage2_results, label_to_model)
             yield f"data: {json.dumps({'type': 'stage2_complete', 'data': stage2_results, 'metadata': {'label_to_model': label_to_model, 'aggregate_rankings': aggregate_rankings}})}\n\n"
 
             # Stage 3: Synthesize final answer
             yield f"data: {json.dumps({'type': 'stage3_start'})}\n\n"
-            stage3_result = await stage3_synthesize_final(request.content, stage1_results, stage2_results)
+            stage3_result = await stage3_synthesize_final(request.content, stage1_results, stage2_results, request.chairman_model)
             yield f"data: {json.dumps({'type': 'stage3_complete', 'data': stage3_result})}\n\n"
 
             # Wait for title generation if it was started
@@ -183,6 +231,10 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
         except Exception as e:
             # Send error event
             yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        finally:
+            if title_task and not title_task.done():
+                title_task.cancel()
+                await asyncio.gather(title_task, return_exceptions=True)
 
     return StreamingResponse(
         event_generator(),

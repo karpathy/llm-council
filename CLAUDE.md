@@ -93,7 +93,7 @@ This strict format allows reliable parsing while still getting thoughtful evalua
 
 ### De-anonymization Strategy
 - Models receive: "Response A", "Response B", etc.
-- Backend creates mapping: `{"Response A": "openai/gpt-5.1", ...}`
+- Backend creates mapping: `{"Response A": "openai/gpt-6.1-sol", ...}`
 - Frontend displays model names in **bold** for readability
 - Users see explanation that original evaluation used anonymous labels
 - This prevents bias while maintaining transparency
@@ -123,7 +123,7 @@ All backend modules use relative imports (e.g., `from .config import ...`) not a
 All ReactMarkdown components must be wrapped in `<div className="markdown-content">` for proper spacing. This class is defined globally in `index.css`.
 
 ### Model Configuration
-Models are hardcoded in `backend/config.py`. Chairman can be same or different from council members. The current default is Gemini as chairman per user preference.
+The UI supports per-question council and chairman choices. `/api/models` lists text-compatible public OpenRouter models, prioritizing OpenAI, Anthropic, Google, and xAI while retaining other providers. Explicit IDs work even if the catalog is unavailable. Defaults are defined in `backend/config.py` and can be overridden with `COUNCIL_MODELS` (comma-separated), `CHAIRMAN_MODEL`, and `TITLE_MODEL` in the project `.env`. Gemini remains the default chairman. `OPENROUTER_TIMEOUT_SECONDS` controls the per-operation HTTP timeout for council requests; title generation uses 30 seconds.
 
 ## Common Gotchas
 
@@ -134,7 +134,6 @@ Models are hardcoded in `backend/config.py`. Chairman can be same or different f
 
 ## Future Enhancement Ideas
 
-- Configurable council/chairman via UI instead of config file
 - Streaming responses instead of batch loading
 - Export conversations to markdown/PDF
 - Model performance analytics over time
@@ -143,7 +142,7 @@ Models are hardcoded in `backend/config.py`. Chairman can be same or different f
 
 ## Testing Notes
 
-Use `test_openrouter.py` to verify API connectivity and test different model identifiers before adding to council. The script tests both streaming and non-streaming modes.
+Run `uv run python -m unittest discover -s tests -v` for offline client, configuration, and full API flow tests. Run `uv run python -m backend.check_models` for a public model-catalog check without sending credentials or paid inference requests. Neither command verifies authenticated inference or account credits.
 
 ## Data Flow Summary
 

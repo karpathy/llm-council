@@ -1,0 +1,18 @@
+.model-settings { border-bottom: 1px solid #ddd; background: #f8fafc; padding: 12px 20px; max-height: 55vh; overflow: auto; flex-shrink: 0; }
+.model-settings summary { cursor: pointer; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.model-settings fieldset { border: 0; padding: 12px 0 0; margin: 0; min-width: 0; }
+.model-settings legend { padding-top: 14px; font-weight: 600; }
+.model-settings p { font-size: 13px; line-height: 1.5; margin: 8px 0; }
+.model-settings label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 6px; }
+.model-settings input { width: 100%; min-width: 0; padding: 8px; border: 1px solid #bbb; border-radius: 5px; font: inherit; font-size: 13px; }
+.model-settings button { border: 1px solid #bbc9d9; background: white; color: #245e9e; padding: 7px 10px; border-radius: 5px; cursor: pointer; }
+.model-settings button:disabled, .model-settings fieldset:disabled { opacity: .6; }
+.model-settings button:disabled { cursor: not-allowed; }
+.model-members { list-style: none; padding: 0; margin: 8px 0; }
+.model-members li { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid #e5e9ef; padding: 6px 0; font-size: 13px; }
+.model-members span { min-width: 0; overflow-wrap: anywhere; }
+.model-members small { display: block; color: #666; margin-top: 2px; }
+.model-add { display: flex; gap: 8px; }
+.model-reset { margin-top: 12px; }
+.model-notice { color: #755000; }
+.model-error { color: #a32b20; }

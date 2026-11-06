@@ -2,7 +2,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 0;
   background: #ffffff;
 }
 
@@ -161,3 +161,4 @@
   background: #ccc;
   border-color: #ccc;
 }
+

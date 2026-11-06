@@ -13,3 +13,8 @@
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
 }
+
+.council-main { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.app-error { background: #fff0ed; color: #912c1e; padding: 12px 20px; font-size: 14px; display: flex; align-items: center; gap: 12px; }
+.app-error button { margin-left: auto; border: 0; background: transparent; color: inherit; font-size: 22px; cursor: pointer; }
+@media (max-width: 700px) { .sidebar { width: 180px; } .model-settings { padding: 12px; } }

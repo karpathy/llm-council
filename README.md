@@ -2,7 +2,7 @@
 
 ![llmcouncil](header.jpg)
 
-The idea of this repo is that instead of asking a question to your favorite LLM provider (e.g. OpenAI GPT 5.1, Google Gemini 3.0 Pro, Anthropic Claude Sonnet 4.5, xAI Grok 4, eg.c), you can group them into your "LLM Council". This repo is a simple, local web app that essentially looks like ChatGPT except it uses OpenRouter to send your query to multiple LLMs, it then asks them to review and rank each other's work, and finally a Chairman LLM produces the final response.
+The idea of this repo is that instead of asking a question to your favorite LLM provider (e.g. OpenAI GPT-6.1 Sol, Google Gemini 4 Argon, Anthropic Claude Sonnet 5.5, xAI Grok 4.7), you can group them into your "LLM Council". This repo is a simple, local web app that essentially looks like ChatGPT except it uses OpenRouter to send your query to multiple LLMs, it then asks them to review and rank each other's work, and finally a Chairman LLM produces the final response.
 
 In a bit more detail, here is what happens when you submit a query:
 
@@ -34,28 +34,69 @@ cd ..
 
 ### 2. Configure API Key
 
-Create a `.env` file in the project root:
+Copy the example configuration, then add your OpenRouter API key locally:
 
 ```bash
-OPENROUTER_API_KEY=sk-or-v1-...
+cp .env.example .env
 ```
 
-Get your API key at [openrouter.ai](https://openrouter.ai/). Make sure to purchase the credits you need, or sign up for automatic top up.
+Set `OPENROUTER_API_KEY` in `.env` using a key from [OpenRouter](https://openrouter.ai/settings/keys). The backend sends requests to `https://openrouter.ai/api/v1/chat/completions`; you do not need separate provider keys. Keep the key out of frontend code and Git. `.env` is ignored by Git, and existing shell environment variables take precedence over it. Restart the backend after changing settings.
 
-### 3. Configure Models (Optional)
+OpenRouter requires credits for these paid models. A new conversation normally makes ten model calls: four answers, four reviews, one synthesis, and one title. Subsequent messages normally make nine. See the [current catalog and pricing](https://openrouter.ai/models) before running questions.
 
-Edit `backend/config.py` to customize the council:
+### 3. Choose Models
 
-```python
-COUNCIL_MODELS = [
-    "openai/gpt-5.1",
-    "google/gemini-3-pro-preview",
-    "anthropic/claude-sonnet-4.5",
-    "x-ai/grok-4",
-]
+Use the model settings in the app to add or remove council members and choose a separate chairman before sending a question. OpenAI, Anthropic, Google, and xAI are prioritized; other OpenRouter text models can join the council and peer review too. You can enter a model ID directly if the public catalog is unavailable. Changes apply to the next question and do not change earlier answers. More council members mean more paid calls.
 
-CHAIRMAN_MODEL = "google/gemini-3-pro-preview"
+The app supports up to 26 unique council members so anonymous review labels remain A–Z. Model selection never requires entering an API key in the browser.
+
+#### Default Configuration (Optional)
+
+The defaults were checked against the [OpenRouter model catalog](https://openrouter.ai/api/v1/models) on November 6, 2026:
+
+- Council: `openai/gpt-6.1-sol`, `google/gemini-4-argon`, `anthropic/claude-sonnet-5.5`, `x-ai/grok-4.7`.
+- Chairman: `google/gemini-4-argon`.
+- Titles: `google/gemini-3.5-flash-lite`, a lightweight model for short titles.
+
+These are explicit, non-preview IDs rather than moving `latest` aliases. Availability and prices can change. Override them in `.env` without editing Python:
+
+```bash
+COUNCIL_MODELS=openai/gpt-6.1-sol,google/gemini-4-argon,anthropic/claude-sonnet-5.5,x-ai/grok-4.7
+CHAIRMAN_MODEL=google/gemini-4-argon
+TITLE_MODEL=google/gemini-3.5-flash-lite
+OPENROUTER_TIMEOUT_SECONDS=180
 ```
+
+The timeout is HTTPX's per-operation timeout for each model, not a deadline for the whole council. Title generation keeps a 30-second timeout and falls back to “New Conversation.” Requests are not automatically retried, since a timed-out request may already have incurred charges.
+
+### 4. Check Configuration
+
+Verify model IDs against the public catalog without sending a key, prompt, or paid completion:
+
+```bash
+uv run python -m backend.check_models
+```
+
+This checks catalog availability and text compatibility. It does **not** validate your API key, account credits, or a live generated response.
+
+Run the offline test suite:
+
+```bash
+uv run python -m unittest discover -s tests -v
+```
+
+The tests mock OpenRouter, including full streaming and non-streaming council flows, and do not spend credits.
+
+### OpenRouter Troubleshooting
+
+- Missing key: the message API returns 503 before saving a message or contacting OpenRouter. Set `OPENROUTER_API_KEY` and restart the backend.
+- HTTP 401 in backend logs: check the key and any shell variable overriding `.env`.
+- HTTP 402: check your OpenRouter credit balance.
+- HTTP 429: wait before trying again.
+- Missing model: run the catalog check and choose an available text model.
+- Timeout: increase `OPENROUTER_TIMEOUT_SECONDS` if needed. Reasoning models can take longer; retrying may incur another charge.
+
+Individual model failures do not stop successful members. If every model fails, the app reports an error instead of requesting rankings and synthesis from an empty council. Provider errors and malformed responses are logged without including prompts, keys, or raw API response bodies.
 
 ## Running the Application
 
