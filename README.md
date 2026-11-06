@@ -46,7 +46,7 @@ OpenRouter requires credits for these paid models. A new conversation normally m
 
 ### 3. Choose Models
 
-Use the model settings in the app to add or remove council members and choose a separate chairman before sending a question. OpenAI, Anthropic, Google, and xAI are prioritized; other OpenRouter text models can join the council and peer review too. You can enter a model ID directly if the public catalog is unavailable. Changes apply to the next question and do not change earlier answers. More council members mean more paid calls.
+Use the model settings in the app to add or remove council members and choose a separate chairman before sending a question. The chairman cannot also be one of the selected judges; routing variants of the same model do not count as a different model. OpenAI, Anthropic, Google, and xAI are prioritized; other OpenRouter text models can join the council and peer review too. You can enter a model ID directly if the public catalog is unavailable. Changes apply to the next question and do not change earlier answers. More council members mean more paid calls.
 
 The app supports up to 26 unique council members so anonymous review labels remain A–Z. Model selection never requires entering an API key in the browser.
 
@@ -55,14 +55,16 @@ The app supports up to 26 unique council members so anonymous review labels rema
 The defaults were checked against the [OpenRouter model catalog](https://openrouter.ai/api/v1/models) on November 6, 2026:
 
 - Council: `openai/gpt-6.1-sol`, `google/gemini-4-argon`, `anthropic/claude-sonnet-5.5`, `x-ai/grok-4.7`.
-- Chairman: `google/gemini-4-argon`.
+- Chairman: `anthropic/claude-opus-5.5`, separate from every judge.
 - Titles: `google/gemini-3.5-flash-lite`, a lightweight model for short titles.
+
+The default chairman, Claude Opus 5.5, is a premium model: OpenRouter listed $4 per million input tokens and $20 per million output tokens at verification, before any applicable caching or provider-specific adjustments. This is higher than the former Gemini chairman ($2/$10). You can choose another distinct text model to control cost.
 
 These are explicit, non-preview IDs rather than moving `latest` aliases. Availability and prices can change. Override them in `.env` without editing Python:
 
 ```bash
 COUNCIL_MODELS=openai/gpt-6.1-sol,google/gemini-4-argon,anthropic/claude-sonnet-5.5,x-ai/grok-4.7
-CHAIRMAN_MODEL=google/gemini-4-argon
+CHAIRMAN_MODEL=anthropic/claude-opus-5.5
 TITLE_MODEL=google/gemini-3.5-flash-lite
 OPENROUTER_TIMEOUT_SECONDS=180
 ```
@@ -88,6 +90,8 @@ uv run python -m unittest discover -s tests -v
 The tests mock OpenRouter, including full streaming and non-streaming council flows, and do not spend credits.
 
 ### OpenRouter Troubleshooting
+
+- Chairman overlap: choose a model absent from the council list. If an existing `.env` still sets the old Gemini chairman, update or remove that override before restarting. The backend rejects overlapping configured defaults and API requests.
 
 - Missing key: the message API returns 503 before saving a message or contacting OpenRouter. Set `OPENROUTER_API_KEY` and restart the backend.
 - HTTP 401 in backend logs: check the key and any shell variable overriding `.env`.

@@ -3,14 +3,14 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List, Dict, Any
 import uuid
 import json
 import asyncio
 
 from . import storage
-from .config import OPENROUTER_API_KEY
+from .config import OPENROUTER_API_KEY, COUNCIL_MODELS, CHAIRMAN_MODEL, validate_distinct_chairman
 from .model_catalog import list_model_options
 from .council import run_full_council, generate_conversation_title, stage1_collect_responses, stage2_collect_rankings, stage3_synthesize_final, calculate_aggregate_rankings
 
@@ -51,6 +51,14 @@ class SendMessageRequest(BaseModel):
     @classmethod
     def validate_chairman_model(cls, value):
         return None if value is None else cls.validate_model_id(value)
+
+    @model_validator(mode="after")
+    def validate_distinct_roles(self):
+        validate_distinct_chairman(
+            COUNCIL_MODELS if self.council_models is None else self.council_models,
+            CHAIRMAN_MODEL if self.chairman_model is None else self.chairman_model,
+        )
+        return self
 
     @staticmethod
     def validate_model_id(value):

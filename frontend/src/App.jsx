@@ -75,7 +75,7 @@ function App() {
   const handleSendMessage = async (content) => {
     if (!currentConversation || sending.current || modelsLoading) return;
     if (!validSelection(selection)) {
-      setError('Choose 1–26 unique council models and a valid chairman before sending.');
+      setError('Choose 1–26 unique council models and a different model as chairman before sending.');
       return;
     }
     sending.current = true;

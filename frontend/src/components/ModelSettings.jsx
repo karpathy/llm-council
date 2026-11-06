@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { validModelId } from '../modelSettings';
+import { validModelId, distinctChairman } from '../modelSettings';
 import './ModelSettings.css';
 
 export default function ModelSettings({ models, selection, defaults, onChange, disabled, notice }) {
@@ -10,6 +10,7 @@ export default function ModelSettings({ models, selection, defaults, onChange, d
     const id = candidate.trim();
     if (!validModelId(id)) return setError('Enter an OpenRouter model ID, such as provider/model.');
     if (selection.council_models.includes(id)) return setError('That model is already on the council.');
+    if (!distinctChairman({ ...selection, council_models: [id] })) return setError('The chairman cannot also be a council judge. Choose a different model.');
     if (selection.council_models.length >= 26) return setError('The council supports at most 26 members.');
     onChange({ ...selection, council_models: [...selection.council_models, id] });
     setCandidate('');
@@ -20,7 +21,7 @@ export default function ModelSettings({ models, selection, defaults, onChange, d
       <summary>Council models · {selection.council_models.length} members · Chairman: {describe(selection.chairman_model)}</summary>
       <fieldset disabled={disabled}>
         <legend>Models for your next question</legend>
-        <p>OpenAI, Google, Anthropic and xAI appear first. Add any text model on OpenRouter. Each extra member adds answer and review calls, increasing cost.</p>
+        <p>OpenAI, Google, Anthropic and xAI appear first. Add any text model on OpenRouter. The chairman must be different from every judge. Each extra member adds answer and review calls, increasing cost.</p>
         {notice && <p className="model-notice" role="status">{notice}</p>}
         <ul className="model-members">
           {selection.council_models.map((id) => (
@@ -36,9 +37,11 @@ export default function ModelSettings({ models, selection, defaults, onChange, d
           <button type="button" onClick={addMember} disabled={!candidate.trim() || selection.council_models.length >= 26}>Add</button>
         </div>
         <label htmlFor="chairman-model">Chairman (independent final synthesis)</label>
-        <input id="chairman-model" list="openrouter-models" value={selection.chairman_model} onChange={(event) => onChange({ ...selection, chairman_model: event.target.value.trim() })} aria-invalid={!validModelId(selection.chairman_model)} />
+        <input id="chairman-model" list="chairman-models" value={selection.chairman_model} onChange={(event) => onChange({ ...selection, chairman_model: event.target.value.trim() })} aria-invalid={!validModelId(selection.chairman_model) || !distinctChairman(selection)} />
         {!validModelId(selection.chairman_model) && <p className="model-error">Choose a chairman using a provider/model ID before sending.</p>}
-        <datalist id="openrouter-models">{models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</datalist>
+        {!distinctChairman(selection) && <p className="model-error" role="alert">The chairman is already a council judge. Choose a different model or remove it from the council.</p>}
+        <datalist id="openrouter-models">{models.filter((model) => distinctChairman({ ...selection, council_models: [model.id] })).map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</datalist>
+        <datalist id="chairman-models">{models.filter((model) => distinctChairman({ ...selection, chairman_model: model.id })).map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</datalist>
         {error && <p className="model-error" role="alert">{error}</p>}
         <button className="model-reset" type="button" onClick={() => { onChange({ ...defaults, council_models: [...defaults.council_models] }); setError(''); }}>Reset to configured defaults</button>
       </fieldset>

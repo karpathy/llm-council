@@ -22,7 +22,7 @@ class ConfigTests(unittest.TestCase):
             "openai/gpt-6.1-sol", "google/gemini-4-argon",
             "anthropic/claude-sonnet-5.5", "x-ai/grok-4.7",
         ])
-        self.assertEqual(result.CHAIRMAN_MODEL, "google/gemini-4-argon")
+        self.assertEqual(result.CHAIRMAN_MODEL, "anthropic/claude-opus-5.5")
         self.assertEqual(result.TITLE_MODEL, "google/gemini-3.5-flash-lite")
         self.assertEqual(result.OPENROUTER_TIMEOUT_SECONDS, 180.0)
         self.assertEqual(result.OPENROUTER_API_KEY, "")
@@ -44,6 +44,8 @@ class ConfigTests(unittest.TestCase):
             {"COUNCIL_MODELS": " , "},
             {"COUNCIL_MODELS": "provider/a,provider/a"},
             {"CHAIRMAN_MODEL": " "}, {"TITLE_MODEL": ""},
+            {"CHAIRMAN_MODEL": "google/gemini-4-argon"},
+            {"CHAIRMAN_MODEL": "google/gemini-4-argon:online"},
             *({"OPENROUTER_TIMEOUT_SECONDS": value} for value in ["0", "-1", "nan", "inf", "oops"]),
         ]:
             with self.subTest(variables=variables), self.assertRaises(ValueError):

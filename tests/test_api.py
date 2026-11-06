@@ -110,6 +110,23 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(response.status_code, 422)
         self.assertEqual(storage.get_conversation(self.id)["messages"], [])
 
+    def test_chairman_cannot_be_a_judge_in_either_api(self):
+        cases = [
+            {"council_models": ["provider/model"], "chairman_model": "provider/model"},
+            {"council_models": ["provider/model:free"], "chairman_model": "provider/model"},
+            {"council_models": ["provider/model"], "chairman_model": "provider/model:online"},
+            {"chairman_model": config.COUNCIL_MODELS[0]},
+            {"council_models": [config.CHAIRMAN_MODEL]},
+        ]
+        for suffix in ["message", "message/stream"]:
+            for options in cases:
+                with self.subTest(suffix=suffix, options=options), patch.object(openrouter.httpx, "AsyncClient") as client:
+                    response = self.client.post(f"/api/conversations/{self.id}/{suffix}", json={"content": "Question", **options})
+                self.assertEqual(response.status_code, 422)
+                self.assertIn("different model", response.text)
+                client.assert_not_called()
+        self.assertEqual(storage.get_conversation(self.id)["messages"], [])
+
     def test_stream_failure_stops_before_rankings_and_cancels_title(self):
         async def slow_title(_):
             await asyncio.sleep(60)

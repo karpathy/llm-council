@@ -51,5 +51,8 @@ test('selection guards reject empty, duplicate, malformed and oversized councils
     assert.equal(validSelection({ ...FALLBACK_DEFAULTS, council_models }), false);
   }
   assert.equal(validSelection({ ...FALLBACK_DEFAULTS, chairman_model: '' }), false);
+  assert.equal(validSelection({ ...FALLBACK_DEFAULTS, chairman_model: FALLBACK_DEFAULTS.council_models[0] }), false);
+  assert.equal(validSelection({ council_models: ['provider/model:free'], chairman_model: 'provider/model' }), false);
+  assert.equal(validSelection({ council_models: ['provider/model'], chairman_model: 'provider/model:online' }), false);
   assert.equal(validSelection({ council_models: ['deepseek/example:free'], chairman_model: 'other/chair' }), true);
 });
