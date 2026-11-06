@@ -42,7 +42,7 @@ cp .env.example .env
 
 Set `OPENROUTER_API_KEY` in `.env` using a key from [OpenRouter](https://openrouter.ai/settings/keys). The backend sends requests to `https://openrouter.ai/api/v1/chat/completions`; you do not need separate provider keys. Keep the key out of frontend code and Git. `.env` is ignored by Git, and existing shell environment variables take precedence over it. Restart the backend after changing settings.
 
-OpenRouter requires credits for these paid models. A new conversation normally makes ten model calls: four answers, four reviews, one synthesis, and one title. Subsequent messages normally make nine. See the [current catalog and pricing](https://openrouter.ai/models) before running questions.
+OpenRouter requires credits for these paid models. With seven default judges, a new conversation normally makes sixteen model calls: seven answers, seven reviews, one synthesis, and one title. Subsequent messages normally make fifteen. This is six additional calls per question compared with the original four-judge default, and each review receives more answers, so token cost can increase by more than the call-count ratio. See the [current catalog and pricing](https://openrouter.ai/models) before running questions.
 
 ### 3. Choose Models
 
@@ -54,16 +54,18 @@ The app supports up to 26 unique council members so anonymous review labels rema
 
 The defaults were checked against the [OpenRouter model catalog](https://openrouter.ai/api/v1/models) on November 6, 2026:
 
-- Council: `openai/gpt-6.1-sol`, `google/gemini-4-argon`, `anthropic/claude-sonnet-5.5`, `x-ai/grok-4.7`.
+- Council: `openai/gpt-6.1-sol`, `google/gemini-4-argon`, `anthropic/claude-sonnet-5.5`, `x-ai/grok-4.7`, `moonshotai/kimi-k3.1-pro`, `deepseek/deepseek-v4.1-flash`, `qwen/qwen3.8-max-0902`.
 - Chairman: `anthropic/claude-opus-5.5`, separate from every judge.
 - Titles: `google/gemini-3.5-flash-lite`, a lightweight model for short titles.
+
+The additional judges provide Moonshot, DeepSeek, and Qwen perspectives while the big four providers stay first. If an existing `.env` sets `COUNCIL_MODELS`, remove or update that override to use all seven defaults.
 
 The default chairman, Claude Opus 5.5, is a premium model: OpenRouter listed $4 per million input tokens and $20 per million output tokens at verification, before any applicable caching or provider-specific adjustments. This is higher than the former Gemini chairman ($2/$10). You can choose another distinct text model to control cost.
 
 These are explicit, non-preview IDs rather than moving `latest` aliases. Availability and prices can change. Override them in `.env` without editing Python:
 
 ```bash
-COUNCIL_MODELS=openai/gpt-6.1-sol,google/gemini-4-argon,anthropic/claude-sonnet-5.5,x-ai/grok-4.7
+COUNCIL_MODELS=openai/gpt-6.1-sol,google/gemini-4-argon,anthropic/claude-sonnet-5.5,x-ai/grok-4.7,moonshotai/kimi-k3.1-pro,deepseek/deepseek-v4.1-flash,qwen/qwen3.8-max-0902
 CHAIRMAN_MODEL=anthropic/claude-opus-5.5
 TITLE_MODEL=google/gemini-3.5-flash-lite
 OPENROUTER_TIMEOUT_SECONDS=180

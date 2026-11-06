@@ -56,3 +56,13 @@ test('selection guards reject empty, duplicate, malformed and oversized councils
   assert.equal(validSelection({ council_models: ['provider/model'], chairman_model: 'provider/model:online' }), false);
   assert.equal(validSelection({ council_models: ['deepseek/example:free'], chairman_model: 'other/chair' }), true);
 });
+
+
+test('default council includes all seven requested judges with a separate chairman', () => {
+  assert.deepEqual(FALLBACK_DEFAULTS.council_models, [
+    'openai/gpt-6.1-sol', 'google/gemini-4-argon', 'anthropic/claude-sonnet-5.5', 'x-ai/grok-4.7',
+    'moonshotai/kimi-k3.1-pro', 'deepseek/deepseek-v4.1-flash', 'qwen/qwen3.8-max-0902',
+  ]);
+  assert.equal(FALLBACK_DEFAULTS.chairman_model, 'anthropic/claude-opus-5.5');
+  assert.equal(validSelection(FALLBACK_DEFAULTS), true);
+});

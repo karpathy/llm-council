@@ -18,6 +18,9 @@ DEFAULT_COUNCIL_MODELS = [
     "google/gemini-4-argon",
     "anthropic/claude-sonnet-5.5",
     "x-ai/grok-4.7",
+    "moonshotai/kimi-k3.1-pro",
+    "deepseek/deepseek-v4.1-flash",
+    "qwen/qwen3.8-max-0902",
 ]
 COUNCIL_MODELS = [
     model.strip()

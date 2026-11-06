@@ -38,7 +38,10 @@ class ApiTests(unittest.TestCase):
             if payload["model"] == config.TITLE_MODEL:
                 content = "Offline Council Test"
             elif "Now provide your evaluation and ranking:" in prompt:
-                content = "FINAL RANKING:\n1. Response A\n2. Response B\n3. Response C\n4. Response D"
+                content = "FINAL RANKING:\n" + "\n".join(
+                    f"{index + 1}. Response {chr(65 + index)}"
+                    for index in range(len(config.COUNCIL_MODELS))
+                )
             elif "You are the Chairman" in prompt:
                 content = "Combined answer"
             else:
@@ -53,10 +56,10 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         result = response.json()
         self.assertEqual([r["model"] for r in result["stage1"]], config.COUNCIL_MODELS)
-        self.assertEqual(len(result["stage2"]), 4)
+        self.assertEqual(len(result["stage2"]), 7)
         self.assertEqual(result["stage3"], {"model": config.CHAIRMAN_MODEL, "response": "Combined answer"})
-        self.assertEqual(len(result["metadata"]["aggregate_rankings"]), 4)
-        self.assertEqual(len(requests), 10)
+        self.assertEqual(len(result["metadata"]["aggregate_rankings"]), 7)
+        self.assertEqual(len(requests), 16)
         stored = storage.get_conversation(self.id)
         self.assertEqual(stored["title"], "Offline Council Test")
         self.assertEqual(len(stored["messages"]), 2)
@@ -71,7 +74,7 @@ class ApiTests(unittest.TestCase):
         self.assertNotIn("error", [event["type"] for event in events])
         final = next(event["data"] for event in events if event["type"] == "stage3_complete")
         self.assertEqual(final["response"], "Combined answer")
-        self.assertEqual(len(requests), 10)
+        self.assertEqual(len(requests), 16)
 
     def test_missing_key_rejected_before_storage_or_requests(self):
         for suffix in ["message", "message/stream"]:
@@ -83,6 +86,19 @@ class ApiTests(unittest.TestCase):
             self.assertIn("OPENROUTER_API_KEY", response.json()["detail"])
             client.assert_not_called()
             self.assertEqual(storage.get_conversation(self.id)["messages"], [])
+
+    def test_subsequent_messages_skip_title_with_seven_judges(self):
+        for suffix in ["message", "message/stream"]:
+            conversation_id = self.client.post("/api/conversations", json={}).json()["id"]
+            requests = []
+            with self.subTest(suffix=suffix), self.mock_router(self.response_handler(requests)):
+                first = self.client.post(f"/api/conversations/{conversation_id}/{suffix}", json={"content": "First"})
+                self.assertEqual(first.status_code, 200)
+                requests.clear()
+                second = self.client.post(f"/api/conversations/{conversation_id}/{suffix}", json={"content": "Second"})
+            self.assertEqual(second.status_code, 200)
+            self.assertEqual(len(requests), 15)
+            self.assertNotIn(config.TITLE_MODEL, [request["model"] for request in requests])
 
     def test_custom_council_and_chairman_in_both_flows(self):
         for suffix in ["message", "message/stream"]:
