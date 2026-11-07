@@ -9,6 +9,7 @@ export default function ChatInterface({
   conversation,
   onSendMessage,
   isLoading,
+  sendDisabled,
 }) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef(null);
@@ -23,7 +24,7 @@ export default function ChatInterface({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (input.trim() && !isLoading) {
+    if (input.trim() && !isLoading && !sendDisabled) {
       onSendMessage(input);
       setInput('');
     }
@@ -71,6 +72,7 @@ export default function ChatInterface({
               ) : (
                 <div className="assistant-message">
                   <div className="message-label">LLM Council</div>
+                  {msg.error && <p className="model-error" role="alert">{msg.error}</p>}
 
                   {/* Stage 1 */}
                   {msg.loading?.stage1 && (
@@ -91,6 +93,7 @@ export default function ChatInterface({
                   {msg.stage2 && (
                     <Stage2
                       rankings={msg.stage2}
+                      research={msg.stage1?.some((result) => result.research?.requested) || msg.stage3?.research?.requested || msg.metadata?.research?.requested}
                       labelToModel={msg.metadata?.label_to_model}
                       aggregateRankings={msg.metadata?.aggregate_rankings}
                     />
@@ -128,13 +131,13 @@ export default function ChatInterface({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={isLoading}
+            disabled={isLoading || sendDisabled}
             rows={3}
           />
           <button
             type="submit"
             className="send-button"
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || isLoading || sendDisabled}
           >
             Send
           </button>

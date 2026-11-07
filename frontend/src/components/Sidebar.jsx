@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import './Sidebar.css';
 
 export default function Sidebar({
@@ -6,12 +5,13 @@ export default function Sidebar({
   currentConversationId,
   onSelectConversation,
   onNewConversation,
+  disabled,
 }) {
   return (
     <div className="sidebar">
       <div className="sidebar-header">
         <h1>LLM Council</h1>
-        <button className="new-conversation-btn" onClick={onNewConversation}>
+        <button className="new-conversation-btn" onClick={onNewConversation} disabled={disabled}>
           + New Conversation
         </button>
       </div>
@@ -26,7 +26,8 @@ export default function Sidebar({
               className={`conversation-item ${
                 conv.id === currentConversationId ? 'active' : ''
               }`}
-              onClick={() => onSelectConversation(conv.id)}
+              onClick={() => { if (!disabled) onSelectConversation(conv.id); }}
+              aria-disabled={disabled}
             >
               <div className="conversation-title">
                 {conv.title || 'New Conversation'}
@@ -41,3 +42,4 @@ export default function Sidebar({
     </div>
   );
 }
+

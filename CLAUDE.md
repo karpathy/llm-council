@@ -93,7 +93,7 @@ This strict format allows reliable parsing while still getting thoughtful evalua
 
 ### De-anonymization Strategy
 - Models receive: "Response A", "Response B", etc.
-- Backend creates mapping: `{"Response A": "openai/gpt-5.1", ...}`
+- Backend creates mapping: `{"Response A": "openai/gpt-6.1-sol", ...}`
 - Frontend displays model names in **bold** for readability
 - Users see explanation that original evaluation used anonymous labels
 - This prevents bias while maintaining transparency
@@ -123,18 +123,25 @@ All backend modules use relative imports (e.g., `from .config import ...`) not a
 All ReactMarkdown components must be wrapped in `<div className="markdown-content">` for proper spacing. This class is defined globally in `index.css`.
 
 ### Model Configuration
-Models are hardcoded in `backend/config.py`. Chairman can be same or different from council members. The current default is Gemini as chairman per user preference.
+The UI supports per-question council and chairman choices. The chairman must differ from every council judge; configuration and request validation reject overlaps, including colon routing variants. `/api/models` lists text-compatible public OpenRouter models, prioritizing OpenAI, Anthropic, Google, and xAI while retaining other providers. Explicit IDs work even if the catalog is unavailable. Defaults are defined in `backend/config.py` and can be overridden with `COUNCIL_MODELS` (comma-separated), `CHAIRMAN_MODEL`, and `TITLE_MODEL` in the project `.env`. The default council has seven judges: the four prioritized providers plus Kimi K3.1 Pro, DeepSeek V4.1 Flash, and Qwen3.8 Max. Claude Opus 5.5 is the default chairman and is not a council judge. `OPENROUTER_TIMEOUT_SECONDS` controls the per-operation HTTP timeout for council requests; title generation uses 30 seconds.
+
+### Research Mode
+- `SendMessageRequest.research` is a strict boolean, false by default. The UI sends it explicitly; Reset disables it.
+- Stage 1 alone uses OpenRouter server-side search and fetch tools with fixed per-judge limits. Reviews and chairman receive bounded evidence/context and output settings, never browsing tools.
+- `openrouter.py` normalizes citation URLs, titles, excerpts and optional offsets, plus safe tool-usage counters and warnings. `research.py` supplies untrusted-evidence instructions, context bounds and aggregated failure disclosure.
+- Stage-one `citations` and `research` fields persist inside stored assistant messages. Stage-three citations are evidence available to synthesis, not newly fetched/verified sources; stage-one character offsets are not reused for the chairman's text.
+- Missing citations, missing/failed tools and truncated content are disclosed, with no automatic downgrade/retry. Aggregate tool counts and citations do not prove individual fetch success.
+- Research UI uses safe link rendering and suppresses remote Markdown images. Prompt-injection resistance and factual support are not guaranteed.
 
 ## Common Gotchas
 
 1. **Module Import Errors**: Always run backend as `python -m backend.main` from project root, not from backend directory
 2. **CORS Issues**: Frontend must match allowed origins in `main.py` CORS middleware
 3. **Ranking Parse Failures**: If models don't follow format, fallback regex extracts any "Response X" patterns in order
-4. **Missing Metadata**: Metadata is ephemeral (not persisted), only available in API responses
+4. **Missing Metadata**: Ranking metadata is ephemeral; research citations and warnings persist in stage1/stage3 payloads.
 
 ## Future Enhancement Ideas
 
-- Configurable council/chairman via UI instead of config file
 - Streaming responses instead of batch loading
 - Export conversations to markdown/PDF
 - Model performance analytics over time
@@ -143,7 +150,7 @@ Models are hardcoded in `backend/config.py`. Chairman can be same or different f
 
 ## Testing Notes
 
-Use `test_openrouter.py` to verify API connectivity and test different model identifiers before adding to council. The script tests both streaming and non-streaming modes.
+Run `uv run python -m unittest discover -s tests -v` for offline client, configuration, and full API flow tests. Run `uv run python -m backend.check_models` for a public model-catalog check without sending credentials or paid inference requests. Neither command verifies authenticated inference or account credits.
 
 ## Data Flow Summary
 

@@ -2,10 +2,18 @@
 
 from typing import List, Dict, Any, Tuple
 from .openrouter import query_models_parallel, query_model
-from .config import COUNCIL_MODELS, CHAIRMAN_MODEL
+from .config import COUNCIL_MODELS, CHAIRMAN_MODEL, TITLE_MODEL, RESEARCH_MAX_OUTPUT_TOKENS, RESEARCH_CONTEXT_CHAR_LIMIT
+from .research import (
+    RESEARCH_INSTRUCTIONS, REVIEW_INSTRUCTIONS, SYNTHESIS_INSTRUCTIONS,
+    evidence_context, collect_citations, research_summary,
+)
 
 
-async def stage1_collect_responses(user_query: str) -> List[Dict[str, Any]]:
+async def stage1_collect_responses(
+    user_query: str,
+    council_models: List[str] | None = None,
+    research: bool = False,
+) -> List[Dict[str, Any]]:
     """
     Stage 1: Collect individual responses from all council models.
 
@@ -16,25 +24,37 @@ async def stage1_collect_responses(user_query: str) -> List[Dict[str, Any]]:
         List of dicts with 'model' and 'response' keys
     """
     messages = [{"role": "user", "content": user_query}]
+    if research:
+        messages.insert(0, {"role": "system", "content": RESEARCH_INSTRUCTIONS})
 
     # Query all models in parallel
-    responses = await query_models_parallel(COUNCIL_MODELS, messages)
+    options = {"research": True} if research else {}
+    responses = await query_models_parallel(COUNCIL_MODELS if council_models is None else council_models, messages, **options)
 
     # Format results
     stage1_results = []
     for model, response in responses.items():
         if response is not None:  # Only include successful responses
-            stage1_results.append({
+            result = {
                 "model": model,
                 "response": response.get('content', '')
-            })
+            }
+            if research:
+                result["citations"] = response.get("citations", [])
+                result["research"] = response.get("research", {
+                    "requested": True, "status": "no_sources",
+                    "warnings": ["Research evidence metadata was not returned."],
+                })
+            stage1_results.append(result)
 
     return stage1_results
 
 
 async def stage2_collect_rankings(
     user_query: str,
-    stage1_results: List[Dict[str, Any]]
+    stage1_results: List[Dict[str, Any]],
+    council_models: List[str] | None = None,
+    research: bool = False,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, str]]:
     """
     Stage 2: Each model ranks the anonymized responses.
@@ -57,7 +77,7 @@ async def stage2_collect_rankings(
 
     # Build the ranking prompt
     responses_text = "\n\n".join([
-        f"Response {label}:\n{result['response']}"
+        f"Response {label}:\n{evidence_context(result) if research else result['response']}"
         for label, result in zip(labels, stage1_results)
     ])
 
@@ -93,9 +113,12 @@ FINAL RANKING:
 Now provide your evaluation and ranking:"""
 
     messages = [{"role": "user", "content": ranking_prompt}]
+    if research:
+        messages.insert(0, {"role": "system", "content": REVIEW_INSTRUCTIONS})
 
     # Get rankings from all council models in parallel
-    responses = await query_models_parallel(COUNCIL_MODELS, messages)
+    options = {"max_output_tokens": RESEARCH_MAX_OUTPUT_TOKENS} if research else {}
+    responses = await query_models_parallel(COUNCIL_MODELS if council_models is None else council_models, messages, **options)
 
     # Format results
     stage2_results = []
@@ -103,11 +126,14 @@ Now provide your evaluation and ranking:"""
         if response is not None:
             full_text = response.get('content', '')
             parsed = parse_ranking_from_text(full_text)
-            stage2_results.append({
+            result = {
                 "model": model,
                 "ranking": full_text,
                 "parsed_ranking": parsed
-            })
+            }
+            if research and response.get("completion_warning"):
+                result["warnings"] = [response["completion_warning"]]
+            stage2_results.append(result)
 
     return stage2_results, label_to_model
 
@@ -115,7 +141,10 @@ Now provide your evaluation and ranking:"""
 async def stage3_synthesize_final(
     user_query: str,
     stage1_results: List[Dict[str, Any]],
-    stage2_results: List[Dict[str, Any]]
+    stage2_results: List[Dict[str, Any]],
+    chairman_model: str | None = None,
+    research: bool = False,
+    selected_models: List[str] | None = None,
 ) -> Dict[str, Any]:
     """
     Stage 3: Chairman synthesizes final response.
@@ -130,12 +159,13 @@ async def stage3_synthesize_final(
     """
     # Build comprehensive context for chairman
     stage1_text = "\n\n".join([
-        f"Model: {result['model']}\nResponse: {result['response']}"
+        f"Model: {result['model']}\nResponse: {evidence_context(result) if research else result['response']}"
         for result in stage1_results
     ])
 
     stage2_text = "\n\n".join([
-        f"Model: {result['model']}\nRanking: {result['ranking']}"
+        f"Model: {result['model']}\nRanking: {result['ranking'][:RESEARCH_CONTEXT_CHAR_LIMIT] if research else result['ranking']}"
+        + ("\n[Peer review excerpt truncated]" if research and len(result['ranking']) > RESEARCH_CONTEXT_CHAR_LIMIT else "")
         for result in stage2_results
     ])
 
@@ -157,21 +187,40 @@ Your task as Chairman is to synthesize all of this information into a single, co
 Provide a clear, well-reasoned final answer that represents the council's collective wisdom:"""
 
     messages = [{"role": "user", "content": chairman_prompt}]
+    summary = None
+    if research:
+        summary = research_summary(COUNCIL_MODELS if selected_models is None else selected_models, stage1_results, stage2_results)
+        messages.insert(0, {"role": "system", "content": SYNTHESIS_INSTRUCTIONS})
+        messages[-1]["content"] += "\n\nResearch limitations:\n" + "\n".join(summary["warnings"])
 
     # Query the chairman model
-    response = await query_model(CHAIRMAN_MODEL, messages)
+    selected_chairman = CHAIRMAN_MODEL if chairman_model is None else chairman_model
+    options = {"max_output_tokens": RESEARCH_MAX_OUTPUT_TOKENS} if research else {}
+    response = await query_model(selected_chairman, messages, **options)
 
     if response is None:
         # Fallback if chairman fails
-        return {
-            "model": CHAIRMAN_MODEL,
+        result = {
+            "model": selected_chairman,
             "response": "Error: Unable to generate final synthesis."
         }
+        if research:
+            summary["warnings"].insert(0, "The chairman did not return a usable synthesis. Review the individual research answers instead.")
+            result.update({"research": summary, "citations": collect_citations(stage1_results)})
+        return result
 
-    return {
-        "model": CHAIRMAN_MODEL,
+    result = {
+        "model": selected_chairman,
         "response": response.get('content', '')
     }
+    if research:
+        if response.get("completion_warning"):
+            summary["warnings"].insert(0, "The chairman reached its output limit; the synthesis may be incomplete.")
+        citations = collect_citations(stage1_results)
+        if citations and not any(citation["url"] in result["response"] for citation in citations):
+            summary["warnings"].insert(0, "The synthesis did not cite supplied sources inline. Consult the council evidence and treat unsupported claims cautiously.")
+        result.update({"research": summary, "citations": citations})
+    return result
 
 
 def parse_ranking_from_text(ranking_text: str) -> List[str]:
@@ -274,8 +323,8 @@ Title:"""
 
     messages = [{"role": "user", "content": title_prompt}]
 
-    # Use gemini-2.5-flash for title generation (fast and cheap)
-    response = await query_model("google/gemini-2.5-flash", messages, timeout=30.0)
+    # Use the lightweight title model, keeping title failures non-blocking.
+    response = await query_model(TITLE_MODEL, messages, timeout=30.0)
 
     if response is None:
         # Fallback to a generic title
@@ -293,7 +342,12 @@ Title:"""
     return title
 
 
-async def run_full_council(user_query: str) -> Tuple[List, List, Dict, Dict]:
+async def run_full_council(
+    user_query: str,
+    council_models: List[str] | None = None,
+    chairman_model: str | None = None,
+    research: bool = False,
+) -> Tuple[List, List, Dict, Dict]:
     """
     Run the complete 3-stage council process.
 
@@ -304,17 +358,24 @@ async def run_full_council(user_query: str) -> Tuple[List, List, Dict, Dict]:
         Tuple of (stage1_results, stage2_results, stage3_result, metadata)
     """
     # Stage 1: Collect individual responses
-    stage1_results = await stage1_collect_responses(user_query)
+    stage1_results = await stage1_collect_responses(user_query, council_models, research)
 
     # If no models responded successfully, return error
     if not stage1_results:
-        return [], [], {
+        result = {
             "model": "error",
             "response": "All models failed to respond. Please try again."
-        }, {}
+        }
+        metadata = {}
+        if research:
+            summary = research_summary(COUNCIL_MODELS if council_models is None else council_models, [])
+            result.update({"research": summary, "citations": []})
+            metadata["research"] = summary
+            result["response"] = "Research failed: no council member returned a usable answer. Check model tool support, your OpenRouter key, credits, and backend logs."
+        return [], [], result, metadata
 
     # Stage 2: Collect rankings
-    stage2_results, label_to_model = await stage2_collect_rankings(user_query, stage1_results)
+    stage2_results, label_to_model = await stage2_collect_rankings(user_query, stage1_results, council_models, research)
 
     # Calculate aggregate rankings
     aggregate_rankings = calculate_aggregate_rankings(stage2_results, label_to_model)
@@ -323,7 +384,10 @@ async def run_full_council(user_query: str) -> Tuple[List, List, Dict, Dict]:
     stage3_result = await stage3_synthesize_final(
         user_query,
         stage1_results,
-        stage2_results
+        stage2_results,
+        chairman_model,
+        research,
+        council_models,
     )
 
     # Prepare metadata
@@ -331,5 +395,7 @@ async def run_full_council(user_query: str) -> Tuple[List, List, Dict, Dict]:
         "label_to_model": label_to_model,
         "aggregate_rankings": aggregate_rankings
     }
+    if research:
+        metadata["research"] = stage3_result["research"]
 
     return stage1_results, stage2_results, stage3_result, metadata
