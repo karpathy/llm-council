@@ -93,6 +93,7 @@ export default function ChatInterface({
                   {msg.stage2 && (
                     <Stage2
                       rankings={msg.stage2}
+                      research={msg.stage1?.some((result) => result.research?.requested) || msg.stage3?.research?.requested || msg.metadata?.research?.requested}
                       labelToModel={msg.metadata?.label_to_model}
                       aggregateRankings={msg.metadata?.aggregate_rankings}
                     />
@@ -145,4 +146,3 @@ export default function ChatInterface({
     </div>
   );
 }
-

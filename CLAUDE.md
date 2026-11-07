@@ -125,12 +125,20 @@ All ReactMarkdown components must be wrapped in `<div className="markdown-conten
 ### Model Configuration
 The UI supports per-question council and chairman choices. The chairman must differ from every council judge; configuration and request validation reject overlaps, including colon routing variants. `/api/models` lists text-compatible public OpenRouter models, prioritizing OpenAI, Anthropic, Google, and xAI while retaining other providers. Explicit IDs work even if the catalog is unavailable. Defaults are defined in `backend/config.py` and can be overridden with `COUNCIL_MODELS` (comma-separated), `CHAIRMAN_MODEL`, and `TITLE_MODEL` in the project `.env`. The default council has seven judges: the four prioritized providers plus Kimi K3.1 Pro, DeepSeek V4.1 Flash, and Qwen3.8 Max. Claude Opus 5.5 is the default chairman and is not a council judge. `OPENROUTER_TIMEOUT_SECONDS` controls the per-operation HTTP timeout for council requests; title generation uses 30 seconds.
 
+### Research Mode
+- `SendMessageRequest.research` is a strict boolean, false by default. The UI sends it explicitly; Reset disables it.
+- Stage 1 alone uses OpenRouter server-side search and fetch tools with fixed per-judge limits. Reviews and chairman receive bounded evidence/context and output settings, never browsing tools.
+- `openrouter.py` normalizes citation URLs, titles, excerpts and optional offsets, plus safe tool-usage counters and warnings. `research.py` supplies untrusted-evidence instructions, context bounds and aggregated failure disclosure.
+- Stage-one `citations` and `research` fields persist inside stored assistant messages. Stage-three citations are evidence available to synthesis, not newly fetched/verified sources; stage-one character offsets are not reused for the chairman's text.
+- Missing citations, missing/failed tools and truncated content are disclosed, with no automatic downgrade/retry. Aggregate tool counts and citations do not prove individual fetch success.
+- Research UI uses safe link rendering and suppresses remote Markdown images. Prompt-injection resistance and factual support are not guaranteed.
+
 ## Common Gotchas
 
 1. **Module Import Errors**: Always run backend as `python -m backend.main` from project root, not from backend directory
 2. **CORS Issues**: Frontend must match allowed origins in `main.py` CORS middleware
 3. **Ranking Parse Failures**: If models don't follow format, fallback regex extracts any "Response X" patterns in order
-4. **Missing Metadata**: Metadata is ephemeral (not persisted), only available in API responses
+4. **Missing Metadata**: Ranking metadata is ephemeral; research citations and warnings persist in stage1/stage3 payloads.
 
 ## Future Enhancement Ideas
 

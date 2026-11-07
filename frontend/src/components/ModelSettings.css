@@ -16,3 +16,7 @@
 .model-reset { margin-top: 12px; }
 .model-notice { color: #755000; }
 .model-error { color: #a32b20; }
+
+
+.model-settings .research-toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.model-settings .research-toggle input { width: auto; flex: none; }

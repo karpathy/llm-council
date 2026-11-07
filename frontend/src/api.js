@@ -81,10 +81,10 @@ export const api = {
     return (await checkedFetch(`/api/conversations/${id}`)).json();
   },
   async sendMessage(id, content, options = {}) {
-    return (await checkedFetch(`/api/conversations/${id}/message`, post({ content, ...options }))).json();
+    return (await checkedFetch(`/api/conversations/${id}/message`, post({ content, ...options, research: options.research === true }))).json();
   },
   async sendMessageStream(id, content, onEvent, options = {}) {
-    const response = await checkedFetch(`/api/conversations/${id}/message/stream`, post({ content, ...options }));
+    const response = await checkedFetch(`/api/conversations/${id}/message/stream`, post({ content, ...options, research: options.research === true }));
     await readEventStream(response.body, onEvent);
   },
 };

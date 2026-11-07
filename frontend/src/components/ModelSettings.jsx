@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { validModelId, distinctChairman } from '../modelSettings';
+import { validModelId, distinctChairman, resetSelection } from '../modelSettings';
 import './ModelSettings.css';
 
 export default function ModelSettings({ models, selection, defaults, onChange, disabled, notice }) {
@@ -18,10 +18,15 @@ export default function ModelSettings({ models, selection, defaults, onChange, d
   };
   return (
     <details className="model-settings">
-      <summary>Council models · {selection.council_models.length} members · Chairman: {describe(selection.chairman_model)}</summary>
+      <summary>{selection.research ? 'Research on · ' : ''}Council models · {selection.council_models.length} members · Chairman: {describe(selection.chairman_model)}</summary>
       <fieldset disabled={disabled}>
         <legend>Models for your next question</legend>
         <p>OpenAI, Google, Anthropic and xAI appear first. Add any text model on OpenRouter. The chairman must be different from every judge. Each extra member adds answer and review calls, increasing cost.</p>
+        <label className="research-toggle" htmlFor="research-mode">
+          <input id="research-mode" type="checkbox" aria-describedby="research-mode-description" checked={selection.research === true} onChange={(event) => onChange({ ...selection, research: event.target.checked })} />
+          Research the web
+        </label>
+        <p id="research-mode-description">Off for ordinary reasoning. When on, each judge can independently search and fetch pages through OpenRouter: at most 2 searches and 2 page fetches per judge. This adds search fees, token costs, and latency. Queries may be sent to a web search provider; do not include secrets.</p>
         {notice && <p className="model-notice" role="status">{notice}</p>}
         <ul className="model-members">
           {selection.council_models.map((id) => (
@@ -43,7 +48,7 @@ export default function ModelSettings({ models, selection, defaults, onChange, d
         <datalist id="openrouter-models">{models.filter((model) => distinctChairman({ ...selection, council_models: [model.id] })).map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</datalist>
         <datalist id="chairman-models">{models.filter((model) => distinctChairman({ ...selection, chairman_model: model.id })).map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</datalist>
         {error && <p className="model-error" role="alert">{error}</p>}
-        <button className="model-reset" type="button" onClick={() => { onChange({ ...defaults, council_models: [...defaults.council_models] }); setError(''); }}>Reset to configured defaults</button>
+        <button className="model-reset" type="button" onClick={() => { onChange(resetSelection(defaults)); setError(''); }}>Reset to configured defaults</button>
       </fieldset>
     </details>
   );

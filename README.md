@@ -42,13 +42,29 @@ cp .env.example .env
 
 Set `OPENROUTER_API_KEY` in `.env` using a key from [OpenRouter](https://openrouter.ai/settings/keys). The backend sends requests to `https://openrouter.ai/api/v1/chat/completions`; you do not need separate provider keys. Keep the key out of frontend code and Git. `.env` is ignored by Git, and existing shell environment variables take precedence over it. Restart the backend after changing settings.
 
-OpenRouter requires credits for these paid models. With seven default judges, a new conversation normally makes sixteen model calls: seven answers, seven reviews, one synthesis, and one title. Subsequent messages normally make fifteen. This is six additional calls per question compared with the original four-judge default, and each review receives more answers, so token cost can increase by more than the call-count ratio. See the [current catalog and pricing](https://openrouter.ai/models) before running questions.
+OpenRouter requires credits for these paid models. With seven default judges, ordinary mode makes sixteen model calls for a new conversation: seven answers, seven reviews, one synthesis, and one title. Subsequent messages normally make fifteen. This is six additional calls per question compared with the original four-judge default, and each review receives more answers, so token cost can increase by more than the call-count ratio. See the [current catalog and pricing](https://openrouter.ai/models) before running questions.
 
 ### 3. Choose Models
 
 Use the model settings in the app to add or remove council members and choose a separate chairman before sending a question. The chairman cannot also be one of the selected judges; routing variants of the same model do not count as a different model. OpenAI, Anthropic, Google, and xAI are prioritized; other OpenRouter text models can join the council and peer review too. You can enter a model ID directly if the public catalog is unavailable. Changes apply to the next question and do not change earlier answers. More council members mean more paid calls.
 
 The app supports up to 26 unique council members so anonymous review labels remain A–Z. Model selection never requires entering an API key in the browser.
+
+#### Optional Research Mode
+
+Enable **Research the web** in the model settings for a question that needs current evidence. It is off by default, and Reset turns it off. Ordinary mode does not add web tools. Research sends the question to the selected models and may send search queries to Exa through OpenRouter, so do not include secrets or private information you do not want shared with those services.
+
+Each judge independently receives OpenRouter's server-side `openrouter:web_search` and `openrouter:web_fetch` tools. Only Stage 1 gets these tools. Peer reviewers inspect the returned answers, source URLs, excerpts and limitations; the separate chairman synthesizes that evidence without additional browsing. You do not need a separate search API key.
+
+Limits per judge are two Exa auto searches, three results per search/six total, two direct OpenRouter page fetches, and four server-tool steps. Search excerpts are limited to 2,000 characters and fetch content to 2,000 tokens. Research calls and downstream reviews/synthesis receive an 8,192-token output setting; downstream answer/review context is capped at 24,000 characters per response and marked when shortened. These settings and the existing timeout constrain work, but are **not a hard total dollar ceiling**: OpenRouter may make multiple internal model turns, and token costs depend on your models and input.
+
+On November 7, 2026, Exa auto search was listed at $0.007 per search, up to $0.014 per judge or $0.098 across seven judges for search service fees alone. Direct OpenRouter fetch was listed as free; model input/output tokens are charged separately, including tool results and extra internal turns. The normal 16/15 top-level request counts therefore understate Research mode's internal model work. Check [current server-tool pricing](https://openrouter.ai/docs/guides/features/server-tools/web-search) before use.
+
+Source lists and research warnings are saved with each answer and shown after reloading a conversation. Missing citations, failed members, unavailable tool activity and truncated answers are disclosed. Citation metadata and aggregate tool counts **do not prove every page was fetched successfully or every claim is supported**. OpenRouter does not guarantee per-page fetch receipts in the final chat response. The UI labels the chairman's source list as evidence available to synthesis and flags an answer that supplies no inline source links.
+
+Retrieved pages, excerpts and other model outputs are treated as untrusted data in prompts, not instructions. Research output uses restricted link rendering and does not load remote Markdown images automatically. These measures do not guarantee protection from every prompt injection or incorrect source claim. Only tool-capable models can research; unsupported models fail visibly without automatic uncited retries. All seven default judges advertised tool support when checked; live paid research has not been run in development.
+
+Official API references: [server tools](https://openrouter.ai/docs/guides/features/server-tools), [web search](https://openrouter.ai/docs/guides/features/server-tools/web-search), [page fetch](https://openrouter.ai/docs/guides/features/server-tools/web-fetch).
 
 #### Default Configuration (Optional)
 
@@ -100,6 +116,7 @@ The tests mock OpenRouter, including full streaming and non-streaming council fl
 - HTTP 402: check your OpenRouter credit balance.
 - HTTP 429: wait before trying again.
 - Missing model: run the catalog check and choose an available text model.
+- Research unavailable or uncited: check model tool support and provider availability. Do not treat an ordinary or unsourced answer as completed web research; failed calls are not silently retried without tools.
 - Timeout: increase `OPENROUTER_TIMEOUT_SECONDS` if needed. Reasoning models can take longer; retrying may incur another charge.
 
 Individual model failures do not stop successful members. If every model fails, the app reports an error instead of requesting rankings and synthesis from an empty council. Provider errors and malformed responses are logged without including prompts, keys, or raw API response bodies.

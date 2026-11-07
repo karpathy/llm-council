@@ -3,7 +3,7 @@ import Sidebar from './components/Sidebar';
 import ChatInterface from './components/ChatInterface';
 import ModelSettings from './components/ModelSettings';
 import { api } from './api';
-import { FALLBACK_DEFAULTS, validSelection } from './modelSettings';
+import { FALLBACK_DEFAULTS, validSelection, resetSelection } from './modelSettings';
 import './App.css';
 
 function App() {
@@ -28,8 +28,8 @@ function App() {
     api.listModels().then((catalog) => {
       if (!active) return;
       setModels(catalog.models);
-      setDefaults(catalog.defaults);
-      setSelection(catalog.defaults);
+      setDefaults(resetSelection(catalog.defaults));
+      setSelection(resetSelection(catalog.defaults));
       if (!catalog.catalog_available) setModelNotice('OpenRouter’s catalog is unavailable. Enter a model ID manually or use the configured defaults. Availability will be checked when you send.');
     }).catch((failure) => {
       if (active) setModelNotice(`Could not load models: ${failure.message} Using fallback defaults; you can enter model IDs manually.`);

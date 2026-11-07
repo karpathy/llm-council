@@ -3,7 +3,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, StrictBool, field_validator, model_validator
 from typing import List, Dict, Any
 import uuid
 import json
@@ -12,6 +12,7 @@ import asyncio
 from . import storage
 from .config import OPENROUTER_API_KEY, COUNCIL_MODELS, CHAIRMAN_MODEL, validate_distinct_chairman
 from .model_catalog import list_model_options
+from .research import research_summary
 from .council import run_full_council, generate_conversation_title, stage1_collect_responses, stage2_collect_rankings, stage3_synthesize_final, calculate_aggregate_rankings
 
 app = FastAPI(title="LLM Council API")
@@ -36,6 +37,7 @@ class SendMessageRequest(BaseModel):
     content: str
     council_models: List[str] | None = Field(default=None, min_length=1, max_length=26)
     chairman_model: str | None = None
+    research: StrictBool = False
 
     @field_validator("council_models")
     @classmethod
@@ -149,7 +151,7 @@ async def send_message(conversation_id: str, request: SendMessageRequest):
 
     # Run the 3-stage council process
     stage1_results, stage2_results, stage3_result, metadata = await run_full_council(
-        request.content, request.council_models, request.chairman_model
+        request.content, request.council_models, request.chairman_model, request.research
     )
 
     # Add assistant message with all stages
@@ -201,22 +203,32 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
 
             # Stage 1: Collect responses
             yield f"data: {json.dumps({'type': 'stage1_start'})}\n\n"
-            stage1_results = await stage1_collect_responses(request.content, request.council_models)
+            stage1_results = await stage1_collect_responses(request.content, request.council_models, request.research)
             yield f"data: {json.dumps({'type': 'stage1_complete', 'data': stage1_results})}\n\n"
 
             if not stage1_results:
-                yield f"data: {json.dumps({'type': 'error', 'message': 'No council models responded. Check your OpenRouter key, credits, model IDs, and backend logs.'})}\n\n"
+                message = "No council models responded. Check your OpenRouter key, credits, model IDs, and backend logs."
+                if request.research:
+                    message = "Research failed: no council member returned a usable answer. Check model tool support, your OpenRouter key, credits, and backend logs."
+                    summary = research_summary(COUNCIL_MODELS if request.council_models is None else request.council_models, [])
+                    failure = {"model": "error", "response": message, "research": summary, "citations": []}
+                    storage.add_assistant_message(conversation_id, [], [], failure)
+                    yield f"data: {json.dumps({'type': 'stage3_complete', 'data': failure})}\n\n"
+                yield f"data: {json.dumps({'type': 'error', 'message': message})}\n\n"
                 return
 
             # Stage 2: Collect rankings
             yield f"data: {json.dumps({'type': 'stage2_start'})}\n\n"
-            stage2_results, label_to_model = await stage2_collect_rankings(request.content, stage1_results, request.council_models)
+            stage2_results, label_to_model = await stage2_collect_rankings(request.content, stage1_results, request.council_models, request.research)
             aggregate_rankings = calculate_aggregate_rankings(stage2_results, label_to_model)
-            yield f"data: {json.dumps({'type': 'stage2_complete', 'data': stage2_results, 'metadata': {'label_to_model': label_to_model, 'aggregate_rankings': aggregate_rankings}})}\n\n"
+            metadata = {"label_to_model": label_to_model, "aggregate_rankings": aggregate_rankings}
+            if request.research:
+                metadata["research"] = research_summary(COUNCIL_MODELS if request.council_models is None else request.council_models, stage1_results, stage2_results)
+            yield f"data: {json.dumps({'type': 'stage2_complete', 'data': stage2_results, 'metadata': metadata})}\n\n"
 
             # Stage 3: Synthesize final answer
             yield f"data: {json.dumps({'type': 'stage3_start'})}\n\n"
-            stage3_result = await stage3_synthesize_final(request.content, stage1_results, stage2_results, request.chairman_model)
+            stage3_result = await stage3_synthesize_final(request.content, stage1_results, stage2_results, request.chairman_model, request.research, request.council_models)
             yield f"data: {json.dumps({'type': 'stage3_complete', 'data': stage3_result})}\n\n"
 
             # Wait for title generation if it was started

@@ -51,6 +51,11 @@ OPENROUTER_TIMEOUT_SECONDS = float(os.getenv("OPENROUTER_TIMEOUT_SECONDS", "180"
 if not math.isfinite(OPENROUTER_TIMEOUT_SECONDS) or OPENROUTER_TIMEOUT_SECONDS <= 0:
     raise ValueError("OPENROUTER_TIMEOUT_SECONDS must be a positive, finite number.")
 
+# Research is opt-in per question. Bound output and downstream evidence context.
+# Tool calls have separate fixed limits in the OpenRouter client.
+RESEARCH_MAX_OUTPUT_TOKENS = 8192
+RESEARCH_CONTEXT_CHAR_LIMIT = 24000
+
 # OpenRouter API endpoint
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 

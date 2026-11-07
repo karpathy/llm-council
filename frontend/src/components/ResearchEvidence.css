@@ -1,0 +1,10 @@
+.research-evidence { border-top: 1px solid #cdd8e4; margin-top: 16px; padding-top: 12px; font-size: 13px; line-height: 1.5; }
+.research-badge { display: inline-block; background: #e4effc; color: #245e9e; border-radius: 4px; padding: 2px 7px; font-weight: 600; }
+.research-evidence h4 { margin: 10px 0 4px; }
+.research-note { color: #555; margin: 4px 0; }
+.research-warnings { color: #8a3b12; background: #fff3df; padding: 8px 8px 8px 28px; border-radius: 4px; }
+.research-evidence li { margin: 6px 0; overflow-wrap: anywhere; }
+.research-evidence small { display: block; color: #666; }
+.research-evidence a { color: #245e9e; }
+.research-evidence details p { white-space: pre-wrap; }
+.research-evidence summary { cursor: pointer; }
