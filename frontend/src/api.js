@@ -47,6 +47,24 @@ export const api = {
   },
 
   /**
+   * Ask a team member to review an assistant response.
+   */
+  async requestReview(conversationId, messageIndex, reviewer, note) {
+    const response = await fetch(
+      `${API_BASE}/api/conversations/${conversationId}/messages/${messageIndex}/review-requests`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviewer, note }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to request review');
+    }
+    return response.json();
+  },
+
+  /**
    * Send a message in a conversation.
    */
   async sendMessage(conversationId, content) {

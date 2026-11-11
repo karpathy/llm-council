@@ -34,6 +34,12 @@ class SendMessageRequest(BaseModel):
     content: str
 
 
+class ReviewRequest(BaseModel):
+    """Request for a team member to review a council response."""
+    reviewer: str
+    note: str = ""
+
+
 class ConversationMetadata(BaseModel):
     """Conversation metadata for list view."""
     id: str
@@ -77,6 +83,24 @@ async def get_conversation(conversation_id: str):
     if conversation is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
     return conversation
+
+
+@app.post("/api/conversations/{conversation_id}/messages/{message_index}/review-requests")
+async def request_review(conversation_id: str, message_index: int, request: ReviewRequest):
+    """Ask a team member to review the council's response."""
+    reviewer = request.reviewer.strip()
+    if not reviewer:
+        raise HTTPException(status_code=422, detail="Reviewer is required")
+    if storage.get_conversation(conversation_id) is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    try:
+        return storage.add_review_request(
+            conversation_id, message_index, reviewer, request.note.strip()
+        )
+    except IndexError:
+        raise HTTPException(status_code=404, detail="Message not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/conversations/{conversation_id}/message")
