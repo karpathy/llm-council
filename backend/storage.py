@@ -2,6 +2,7 @@
 
 import json
 import os
+import uuid
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from pathlib import Path
@@ -154,6 +155,48 @@ def add_assistant_message(
     })
 
     save_conversation(conversation)
+
+
+def add_review_request(
+    conversation_id: str,
+    message_index: int,
+    reviewer: str,
+    note: str = ""
+) -> Dict[str, Any]:
+    """
+    Request a human (team member) review of an assistant message.
+
+    Args:
+        conversation_id: Conversation identifier
+        message_index: Index of the assistant message in the conversation
+        reviewer: Name or email of the person asked to review
+        note: Optional note for the reviewer
+
+    Returns:
+        The created review request
+    """
+    conversation = get_conversation(conversation_id)
+    if conversation is None:
+        raise ValueError(f"Conversation {conversation_id} not found")
+
+    messages = conversation["messages"]
+    if message_index < 0 or message_index >= len(messages):
+        raise IndexError("Message index out of range")
+    message = messages[message_index]
+    if message.get("role") != "assistant":
+        raise ValueError("Only assistant responses can be reviewed")
+
+    review = {
+        "id": str(uuid.uuid4()),
+        "reviewer": reviewer,
+        "note": note,
+        "status": "pending",
+        "requested_at": datetime.utcnow().isoformat(),
+    }
+    message.setdefault("review_requests", []).append(review)
+
+    save_conversation(conversation)
+    return review
 
 
 def update_conversation_title(conversation_id: str, title: str):
